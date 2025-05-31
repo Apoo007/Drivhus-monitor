@@ -1,0 +1,67 @@
+import smtplib
+from datetime import datetime
+from email.message import EmailMessage
+
+# Email setup
+EMAIL_SENDER = 'team.zea26@gmail.com'
+EMAIL_RECEIVER = 'sierra.intel007@gmail.com'
+EMAIL_PASSWORD = 'your-app-password'  # brug din app-adgangskode her
+
+def send_warning(subject, body):
+    msg = EmailMessage()
+    msg['Subject'] = subject
+    msg['From'] = EMAIL_SENDER
+    msg['To'] = EMAIL_RECEIVER
+    msg.set_content(body)
+    
+    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+        smtp.login(EMAIL_SENDER, EMAIL_PASSWORD)
+        smtp.send_message(msg)
+
+def check_values(timestamp, temp, humidity, light, soil_raw):
+    warnings = []
+
+    # Soil moisture percent
+    soil_percent = (soil_raw - 200) / 300 * 100
+    if soil_percent < 21:
+        warnings.append(f"Soil too dry: {soil_percent:.1f}%")
+    elif soil_percent > 30:
+        warnings.append(f"Soil too wet: {soil_percent:.1f}%")
+
+    # Humidity
+    if humidity < 65:
+        warnings.append(f"Humidity too low: {humidity:.1f}%")
+    elif humidity > 75:
+        warnings.append(f"Humidity too high: {humidity:.1f}%")
+
+    # Temperature
+    if temp < 20 or temp > 24:
+        warnings.append(f"Temperature out of range: {temp:.1f}°C")
+
+    # Light
+    hour = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S").hour
+    if 5 <= hour <= 22 and light < 800:
+        warnings.append(f"Light too low during day: {light} lux")
+
+    # Send email if any warnings
+    if warnings:
+        subject = f"Plant Alert at {timestamp}"
+        body = "\n".join(warnings)
+        send_warning(subject, body)
+
+# Example data line
+data_line = "2025-05-19 17:36:22 | Temp: 26.3C | Humidity: 17.5% | Light: 908 | Soil Moisture: 427"
+
+# Parsing the data
+def parse_and_check(line):
+    parts = line.split(" | ")
+    timestamp = parts[0]
+    temp = float(parts[1].split(": ")[1].replace("C", ""))
+    humidity = float(parts[2].split(": ")[1].replace("%", ""))
+    light = int(parts[3].split(": ")[1])
+    soil = int(parts[4].split(": ")[1])
+    
+    check_values(timestamp, temp, humidity, light, soil)
+
+# Example usage
+parse_and_check(data_line)
