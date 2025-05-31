@@ -1,0 +1,40 @@
+import serial
+import time
+import yagmail
+
+SERIAL_PORT = '/dev/ttyACM0'
+BAUD_RATE = 9600
+
+sender_email = "team.zea26@gmail.com"
+sender_password = "din_app_adgangskode"  # brug din app-adgangskode her
+receiver_email = "sierra.intel007@gmail.com"
+
+SEND_INTERVAL = 43200  # 12 timer i sekunder (60 * 60 * 12)
+
+ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+yag = yagmail.SMTP(sender_email, sender_password)
+
+buffer = []
+last_sent_time = time.time()
+
+while True:
+    try:
+        # Læs én linje fra Arduino
+        line = ser.readline().decode('utf-8').strip()
+        if line:
+            print("Read:", line)
+            buffer.append(line)
+
+        # Tjek om det er tid til at sende e-mail (hver 24 timer)
+        current_time = time.time()
+        if current_time - last_sent_time >= SEND_INTERVAL:
+            if buffer:
+                subject = "Drivhus Sensor Data (Sidste 24 timer)"
+                body = "\n".join(buffer)
+                yag.send(to=receiver_email, subject=subject, contents=body)
+                print("📤 Email sendt med data fra sidste 24 timer")
+                buffer = []  # nulstil buffer
+            last_sent_time = current_time
+
+    except Exception as e:
+        print("❌ Fejl:", e)
