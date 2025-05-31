@@ -1,0 +1,73 @@
+#include <Adafruit_I2CDevice.h>
+#include <dhtnew.h>
+#include <RTClib.h>
+
+#define DHTPIN 6           
+#define LDR_PIN A1         
+#define SOIL_PIN A2
+
+DHTNEW dht(DHTPIN);
+RTC_DS3231 rtc;
+
+const unsigned long logInterval = 60000; // 1 minut i millisekunder
+unsigned long lastLogMillis = 0;
+
+// Kalibreringsværdier for jordfugtighedssensor
+const int sensorDry = 500;
+const int sensorWet = 273;
+const float maxVWC = 35.0;  // Feltkapacitet for muldjord i %
+
+void setup() {
+  Serial.begin(9600);       
+
+  if (!rtc.begin()) {
+    Serial.println("RTC ikke fundet!");
+    while (1);              
+  }
+
+  if (rtc.lostPower()) {
+    rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); 
+  }
+}
+
+void loop() {
+  unsigned long currentMillis = millis();
+
+  if (currentMillis - lastLogMillis >= logInterval) {
+    lastLogMillis = currentMillis;
+
+    dht.read(); // Læs data fra DHT22
+    float temperature = dht.getTemperature();
+    float humidity = dht.getHumidity();
+
+    int lightLevel = analogRead(LDR_PIN);        
+    int soilMoisture = analogRead(SOIL_PIN);    
+
+    DateTime now = rtc.now();                 
+
+    // Håndtering af DHT22-fejl
+    if (temperature == -999.0 || humidity == -999.0) {
+      Serial.print(now.timestamp(DateTime::TIMESTAMP_FULL));
+      Serial.println(" | Error: DHT sensor kunne ikke læses.");
+      return;
+    }
+
+    // Beregn VWC
+    soilMoisture = constrain(soilMoisture, sensorWet, sensorDry);
+    float vwc = (float)(sensorDry - soilMoisture) / (sensorDry - sensorWet) * maxVWC;
+
+    // Print struktureret data inkl. VWC
+    Serial.print(now.timestamp(DateTime::TIMESTAMP_FULL));
+    Serial.print(" | Temp: ");
+    Serial.print(temperature);
+    Serial.print(" C | Hum: ");
+    Serial.print(humidity);
+    Serial.print(" % | Light: ");
+    Serial.print(lightLevel);
+    Serial.print(" | Soil raw: ");
+    Serial.print(soilMoisture);
+    Serial.print(" | VWC: ");
+    Serial.print(vwc, 1);
+    Serial.println(" %");
+  }
+}
