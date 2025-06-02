@@ -1,0 +1,68 @@
+Arduino
+#include <dhtnew.h>
+#include <RTClib.h>
+
+DHTNEW dht(6);
+
+const int lightSensorPin = A1;
+
+const int soilMoisturePin = A2;
+
+RTC_DS3231 rtc;
+
+unsigned long lastLogMillis = 0;
+unsigned long logInterval = 600000;
+
+float readDHTTemperature(DHTNEW &sensor) {
+    for (int i = 0; i < 3; i++) {
+        sensor.read();
+        float temp = sensor.getTemperature();
+        if (temp != -999.0) return temp;
+        delay(500);
+    }
+    return -999.0;
+}
+
+void setup() {
+ Serial.begin(9600);
+
+ if (!rtc.begin()) {
+   Serial.println("RTC initialization failed!");
+   while (true);
+ }
+
+ if (rtc.lostPower()) {
+   Serial.println("RTC lost power, setting time to compile time.");
+   rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+ }
+}
+
+void loop() {
+  unsigned long currentMillis = millis();
+
+  if (currentMillis - lastLogMillis >=logInterval) {
+    lastLogMillis = currentMillis;
+
+    float temperature = readDHTTemperature(dht);
+    float humidity = (temperature != -999.0) ? dht.getHumidity() : -999.0;
+    int lightIntensity = analogRead(lightSensorPin);
+    int soilMoisture = analogRead(soilMoisturePin);
+
+    DateTime now = rtc.now();
+    char timestamp[25];
+    sprintf(timestamp, "%04d-%02d-%02d %02d:%02d:%02d",
+            now.year(), now.month(), now.day(),
+            now.hour(), now.minute(), now.second());
+
+  if (temperature != -999.0 && humidity != -999.0) {
+    Serial.print(timestamp);
+    Serial.print(temperature, 1);
+    Serial.print(",");
+    Serial.print(humidity, 1);
+    Serial.print(",");  
+    Serial.print(soilMoisture);
+    Serial.print(",");
+    Serial.println(lightIntensity);
+  }
+ }
+}
